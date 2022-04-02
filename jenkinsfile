@@ -1,0 +1,31 @@
+node{
+def mavenhome = tool name: "maven3.8.5"
+
+//checkout stage
+stage('checkout code'){
+git branch: 'development', credentialsId: '30c0b01b-56c1-4713-846c-cc24eb71107b', url: 'https://github.com/reshma-re/maven-web-application.git'
+}
+
+//build stage
+stage('build'){
+sh "$mavenhome/bin/mvn clean package"
+}
+
+//generate sonarcube report
+stage('sonarqube report'){
+sh "$mavenhome/bin/mvn sonar:sonar"
+}
+
+//upload artifact report into artifactory repo
+stage('upload artifacts into nexus'){
+sh "$mavenhome/bin/mvn deploy"
+}
+
+//deploy app into tomcat server
+stage('deploy app into tomcat'){
+sshagent(['e992fb35-df24-47ba-9625-e50e74e855d2']) {
+sh "scp-o  StrictHostKeyChecking=no target/maven-web-application.war ec2-user@18.234.164.13:/opt/apache-tomcat-9.0.60/webapps"
+}
+}
+
+}//node closing
