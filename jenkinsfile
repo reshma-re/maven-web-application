@@ -1,3 +1,32 @@
+
+def sendSlackNotifications(String buildStatus = 'STARTED') {
+  // build status of null means successful
+  buildStatus =  buildStatus ?: 'SUCCESSFUL'
+
+  // Default values
+  def colorName = 'RED'
+  def colorCode = '#FF0000'
+  def subject = "${buildStatus}: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'"
+  def summary = "${subject} (${env.BUILD_URL})"
+
+  // Override default values based on build status
+  if (buildStatus == 'STARTED') {
+    color = 'YELLOW'
+    colorCode = '#FFFF00'
+  } else if (buildStatus == 'SUCCESSFUL') {
+    color = 'GREEN'
+    colorCode = '#00FF00'
+  } else {
+    color = 'RED'
+    colorCode = '#FF0000'
+  }
+
+  // Send notifications
+  slackSend (color: colorCode, message: summary)
+}
+
+
+
 node{
 
 buildname 'Dev - $(BUILD_NUMBER)'
@@ -5,9 +34,7 @@ buildDescription 'pipeline script-scriptedway'
 def mavenhome = tool name: "maven3.8.5"
 
 echo "the node name is : ${env.NODE_NAME}"
-
 echo "the job name is : ${env.JOB_NAME}"
-
 echo "the build number is : ${BUILD_NUMBER}"
 
 //checkout stage
@@ -37,4 +64,38 @@ sh "scp -o  StrictHostKeyChecking=no target/maven-web-application.war ec2-user@1
 }
 }
 
+try{
+//checkout stage
+stage('checkout code'){
+git branch: 'development', credentialsId: '30c0b01b-56c1-4713-846c-cc24eb71107b', url: 'https://github.com/reshma-re/maven-web-application.git'
+}
+
+//build stage
+stage('build'){
+sh "$mavenhome/bin/mvn clean package"
+}
+
+//generate sonarcube report
+stage('sonarqube report'){
+sh "$mavenhome/bin/mvn sonar:sonar"
+}
+
+//upload artifact report into artifactory repo
+stage('upload artifacts into nexus'){
+sh "$mavenhome/bin/mvn deploy"
+}
+
+//deploy app into tomcat server
+stage('deploy app into tomcat'){
+sshagent(['e992fb35-df24-47ba-9625-e50e74e855d2']) {
+sh "scp -o  StrictHostKeyChecking=no target/maven-web-application.war ec2-user@18.234.164.13:/opt/apache-tomcat-9.0.60/webapps"
+}
+}//try block closing
+catch(e){
+currentBuild.result = "FAILED"
+}
+finally{
+sendSlackNotifications(currentBuild.result)
+}
+}
 }//node closing
