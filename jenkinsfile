@@ -67,6 +67,7 @@ sh "scp -o  StrictHostKeyChecking=no target/maven-web-application.war ec2-user@1
 try{
 //checkout stage
 stage('checkout code'){
+sendSlackNotifications('STARTED')
 git branch: 'development', credentialsId: '30c0b01b-56c1-4713-846c-cc24eb71107b', url: 'https://github.com/reshma-re/maven-web-application.git'
 }
 
